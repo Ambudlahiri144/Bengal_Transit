@@ -104,9 +104,9 @@ export default function Home() {
               {route.origin}
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
-              <p className="text-xs text-gray-400 mt-0.5">
-                {route.origin === 'KNI Airport' ? 'Durgapur, West Bengal' : 'Burdwan, West Bengal'}
-              </p>
+              
+              {route.origin === 'KNI Airport' ? 'Durgapur, West Bengal' : 'Burdwan, West Bengal'}
+              
             </p>
 
             {/* ── Swap button (Desktop) ── pinned directly to the right edge */}
@@ -178,9 +178,9 @@ export default function Home() {
               {route.destination}
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
-              <p className="text-xs text-gray-400 mt-0.5">
-                {route.destination === 'KNI Airport' ? 'Durgapur, West Bengal' : 'Burdwan, West Bengal'}
-              </p>
+              
+              {route.destination === 'KNI Airport' ? 'Durgapur, West Bengal' : 'Burdwan, West Bengal'}
+              
             </p>
           </div>
 
