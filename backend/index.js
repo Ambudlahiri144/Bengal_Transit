@@ -34,7 +34,7 @@ cron.schedule('* * * * *', async () => {
 });
 
 // Middleware
-app.use(cors()); // Allows your Next.js frontend to make requests
+ // Allows your Next.js frontend to make requests
 app.use(express.json()); // Parses incoming JSON payloads
 
 // Health Check Endpoint
