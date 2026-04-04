@@ -8,8 +8,10 @@ const app = express();
 app.use(cors({ 
   origin: [
     "http://localhost:3000", 
-    "https://bengal-transit.vercel.app" // ⚠️ Replace this with your EXACT Vercel URL
-  ] 
+    "https://bengal-transit.vercel.app" // ⚠️ MUST exactly match your browser URL!
+  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // Explicitly allows the preflight
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
