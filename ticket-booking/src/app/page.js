@@ -35,8 +35,7 @@ export default function Home() {
 
     try {
       const res = await fetch(
-        `http://localhost:5000/api/schedules/search?origin=${encodeURIComponent(route.origin)}&destination=${encodeURIComponent(route.destination)}&date=${date}`
-      );
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/schedules/search?origin=${encodeURIComponent(route.origin)}&destination=${encodeURIComponent(route.destination)}&date=${date}`      );
 
       if (!res.ok) throw new Error('Failed to fetch schedules');
       const data = await res.json();
