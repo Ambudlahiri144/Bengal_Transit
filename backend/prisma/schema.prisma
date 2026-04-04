@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  bookings     Booking[]
+  createdAt    DateTime  @default(now())
+}
+
+model Bus {
+  id           Int        @id @default(autoincrement())
+  busNumber    String     @unique
+  operatorName String
+  capacity     Int
+  type         String     @default("Non-AC")
+  schedules    Schedule[]
+}
+
+model Schedule {
+  id            Int       @id @default(autoincrement())
+  busId         Int
+  origin        String
+  destination   String
+  departureTime DateTime
+  arrivalTime   DateTime
+  price         Decimal
+  bus           Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
+  bookings      Booking[]
+}
+
+model Booking {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  scheduleId  Int
+  seatNumbers Int[]
+  status      String   @default("Pending")
+  lockedUntil DateTime?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule    Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+}
