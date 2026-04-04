@@ -29,7 +29,7 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
 
     const fetchOccupied = async () => {
       try {
-        const res  = await fetch(`http://localhost:5000/api/schedules/${scheduleId}/seats`);
+        const res  = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/schedules/${scheduleId}/seats`);
         const data = await res.json();
         setConfirmedBookedSeats(data.confirmedSeats ?? []);
         setPendingLockedSeats(data.pendingSeats   ?? []);
@@ -65,7 +65,7 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
 
     try {
       // 1. Lock seats (creates a Pending booking)
-      const lockRes = await fetch('http://localhost:5000/api/bookings/lock', {
+      const lockRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/bookings/lock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,8 +85,8 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
       // 2. Confirm the booking immediately
       //    (In production, this would happen AFTER payment gateway callback)
       const confirmRes = await fetch(
-        `http://localhost:5000/api/bookings/${booking.id}/confirm`,
-        { method: 'PATCH' }
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/bookings/${booking.id}/confirm`,
+          { method: 'PATCH' }
       );
 
       if (!confirmRes.ok) {
