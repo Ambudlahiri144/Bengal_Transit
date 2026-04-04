@@ -8,7 +8,7 @@ const app = express();
 app.use(cors({ 
   origin: [
     "http://localhost:3000", 
-    "https://bengal-transit.vercel.app" // ⚠️ Replace this with your EXACT Vercel URL
+    "https://bengal-transit.vercel.app/" // ⚠️ Replace this with your EXACT Vercel URL
   ] 
 }));
 const prisma = new PrismaClient();
