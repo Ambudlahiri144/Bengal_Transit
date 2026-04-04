@@ -5,6 +5,12 @@ const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 
 const app = express();
+app.use(cors({ 
+  origin: [
+    "http://localhost:3000", 
+    "https://bengal-transit.vercel.app" // ⚠️ Replace this with your EXACT Vercel URL
+  ] 
+}));
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 cron.schedule('* * * * *', async () => {
