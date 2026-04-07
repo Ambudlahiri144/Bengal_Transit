@@ -1,17 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
-// ─────────────────────────────────────────────────────────────
-// SeatSelector.js — now wired to real API + booking flow
-// Props:
-//   scheduleId  : string | number  (from URL params)
-//   scheduleInfo: object           (origin, destination, departureTime, price, bus)
-// ─────────────────────────────────────────────────────────────
-const SeatSelector = ({ scheduleId, scheduleInfo }) => {
-  const router = useRouter();
-
+const SeatSelector = ({ scheduleId, onProceedClick }) => {
   const totalSeats  = 15;
   const seatPrice   = 150;
 
@@ -20,8 +11,6 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
   const [pendingLockedSeats,   setPendingLockedSeats]   = useState([]);
   const [selectedSeats,        setSelectedSeats]        = useState([]);
   const [loadingSeats,         setLoadingSeats]         = useState(true);
-  const [bookingInProgress,    setBookingInProgress]    = useState(false);
-  const [bookingError,         setBookingError]         = useState('');
 
   // ── Fetch occupied seats on mount ───────────────────────────
   useEffect(() => {
@@ -35,8 +24,6 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
         setPendingLockedSeats(data.pendingSeats   ?? []);
       } catch (err) {
         console.error('Failed to fetch seat availability:', err);
-        // Fall back to empty — seats will still work, worst case
-        // double-booking is caught server-side by the lock endpoint
       } finally {
         setLoadingSeats(false);
       }
@@ -56,51 +43,10 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
     );
   };
 
-  // ── Booking handler ──────────────────────────────────────────
-  const handleProceedToBooking = async () => {
-    if (selectedSeats.length === 0) return;
-
-    setBookingInProgress(true);
-    setBookingError('');
-
-    try {
-      // 1. Lock seats (creates a Pending booking)
-      const lockRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/bookings/lock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId:      1,          // TODO: replace with real auth user ID
-          scheduleId:  parseInt(scheduleId),
-          seatNumbers: selectedSeats,
-        }),
-      });
-
-      if (!lockRes.ok) {
-        const err = await lockRes.json();
-        throw new Error(err.error || 'Failed to lock seats.');
-      }
-
-      const { booking } = await lockRes.json();
-
-      // 2. Confirm the booking immediately
-      //    (In production, this would happen AFTER payment gateway callback)
-      const confirmRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/bookings/${booking.id}/confirm`,
-          { method: 'PATCH' }
-      );
-
-      if (!confirmRes.ok) {
-        const err = await confirmRes.json();
-        throw new Error(err.error || 'Failed to confirm booking.');
-      }
-
-      // 3. Navigate to confirmation page
-      router.push(`/book/confirmation/${booking.id}`);
-
-    } catch (err) {
-      console.error('Booking error:', err);
-      setBookingError(err.message);
-      setBookingInProgress(false);
+  // ── Trigger Modal in Parent ──────────────────────────────────
+  const handleProceed = () => {
+    if (selectedSeats.length > 0) {
+      onProceedClick(selectedSeats, selectedSeats.length * seatPrice);
     }
   };
 
@@ -111,66 +57,43 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
     const isOccupied        = isConfirmedBooked || isPendingLocked;
     const isSelected        = selectedSeats.includes(id);
 
-    let strokeColor = 'text-gray-400 hover:text-[#B31B20] cursor-pointer';
-    let fillColor   = 'white';
-    let textColor   = 'text-gray-700';
+    // Default to empty seat
+    let imageSrc = 'empty_seat.png';
+    let textColor = 'text-gray-500';
+    let containerClass = 'cursor-pointer hover:scale-105 transition-transform';
+    let imageOpacity = 'opacity-100';
 
     if (isConfirmedBooked) {
-      strokeColor = 'text-gray-300 cursor-not-allowed';
-      fillColor   = '#f3f4f6';
-      textColor   = 'text-gray-400 line-through';
+      imageSrc = 'taken_seat.png';
+      textColor = 'text-gray-300 line-through';
+      containerClass = 'cursor-not-allowed';
+      imageOpacity = 'opacity-60'; 
     } else if (isPendingLocked) {
-      strokeColor = 'text-amber-300 cursor-not-allowed';
-      fillColor   = '#fef3c7';
-      textColor   = 'text-amber-500';
+      imageSrc = 'taken_seat.png';
+      textColor = 'text-amber-500';
+      containerClass = 'cursor-not-allowed';
+      imageOpacity = 'opacity-80';
     } else if (isSelected) {
-      strokeColor = 'text-[#B31B20]';
-      fillColor   = '#fff1f1';
-      textColor   = 'text-[#B31B20]';
+      imageSrc = 'selected_seat.png';
+      textColor = 'text-[#B31B20]';
+      containerClass = 'cursor-pointer scale-105 drop-shadow-md transition-transform';
     }
 
     return (
-      <div
-        key={id}
-        className="flex flex-col items-center m-2 relative"
+      <div 
+        key={id} 
+        // Added sm:m-3 to give the bigger icons breathing room
+        className={`flex flex-col items-center m-2 sm:m-3 ${containerClass}`} 
         onClick={() => toggleSeat(id)}
-        title={
-          isConfirmedBooked ? 'Booked'
-          : isPendingLocked  ? 'Temporarily held'
-          : isSelected       ? 'Selected — click to deselect'
-          : `Seat ${id} — ₹${seatPrice}`
-        }
       >
-        <div
-          className={`w-12 h-12 relative transition-all duration-200 ${strokeColor} ${
-            isSelected ? 'drop-shadow-md scale-105' : ''
-          }`}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
-            <rect x="6" y="3" width="12" height="15" rx="2.5" fill={fillColor} />
-            <path d="M4 10v9a3 3 0 003 3h10a3 3 0 003-3v-9" strokeLinecap="round" />
-          </svg>
-
-          <div className="absolute inset-0 flex items-center justify-center pb-2">
-            {isSelected && (
-              <svg className="w-5 h-5 text-[#B31B20]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-            {isConfirmedBooked && (
-              <svg className="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-              </svg>
-            )}
-            {isPendingLocked && !isConfirmedBooked && (
-              <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-10V5a2 2 0 10-4 0v4" />
-              </svg>
-            )}
-          </div>
-        </div>
-
-        <span className={`text-[10px] mt-1 font-semibold uppercase tracking-wider ${textColor}`}>
+        <img 
+          src={`/${imageSrc}`} 
+          alt={`Seat ${id}`} 
+          // 👇 Scaled up the icons (w-10 to w-14 on desktop)
+          className={`w-10 h-10 sm:w-14 sm:h-14 object-contain ${imageOpacity}`} 
+        />
+        {/* 👇 Added whitespace-nowrap to prevent double-digits from breaking to a new line */}
+        <span className={`text-[10px] sm:text-[11px] mt-1.5 font-bold uppercase tracking-wider whitespace-nowrap ${textColor}`}>
           {isOccupied ? (isPendingLocked ? 'Held' : 'Taken') : `Seat ${id}`}
         </span>
       </div>
@@ -188,9 +111,11 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
     const seat3   = startId + 2;
 
     rows.push(
-      <div key={i} className="flex justify-between w-full px-6 mb-1">
+      // Reduced side padding slightly to fit the bigger icons
+      <div key={i} className="flex justify-between w-full px-2 sm:px-6 mb-2">
         <div className="flex">{seat1 <= totalSeats && renderSeat(seat1)}</div>
-        <div className="w-10" />
+        {/* 👇 Widened the aisle to keep proportions correct */}
+        <div className="w-10 sm:w-20" /> 
         <div className="flex">
           {seat2 <= totalSeats && renderSeat(seat2)}
           {seat3 <= totalSeats && renderSeat(seat3)}
@@ -201,94 +126,85 @@ const SeatSelector = ({ scheduleId, scheduleInfo }) => {
 
   if (loadingSeats) {
     return (
-      <div className="max-w-sm mx-auto p-8 bg-white rounded-2xl shadow-xl border border-gray-200 text-center">
-        <div className="w-8 h-8 border-4 border-[#B31B20] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-gray-500 text-sm">Loading seat availability…</p>
+      <div className="py-12 flex justify-center">
+        <div className="w-8 h-8 border-4 border-[#B31B20] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-sm mx-auto p-4 bg-white rounded-2xl shadow-xl border border-gray-200 font-sans">
-
-      {/* ── Header stats ── */}
-      <div className="flex justify-between items-center mb-5 px-4">
-        <div className="bg-emerald-100 text-emerald-800 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm">
+    <div className="w-full font-sans">
+      
+      {/* ── Legend ── */}
+      <div className="flex justify-between items-center mb-6 px-2">
+        <div className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded border border-emerald-100 text-xs font-bold">
           {remainingSeats} seats left
         </div>
-
-        {/* Legend */}
-        <div className="flex gap-3 text-xs text-gray-500">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-[#fff1f1] border border-[#B31B20] inline-block" />
+        <div className="flex gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+          <span className="flex items-center gap-1.5">
+            <img src="/selected_seat.png" alt="Selected" className="w-4 h-4 object-contain" /> 
             Selected
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-amber-100 border border-amber-300 inline-block" />
-            Held
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-sm bg-gray-200 border border-gray-300 inline-block" />
+          <span className="flex items-center gap-1.5">
+            <img src="/taken_seat.png" alt="Taken" className="w-4 h-4 object-contain opacity-60" /> 
             Taken
           </span>
         </div>
       </div>
 
-      {/* ── Seat grid ── */}
-      <div className="border-[3px] border-gray-300 rounded-[2rem] py-6 relative bg-gray-50/30">
-        {/* Bus front indicator */}
-        <p className="text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-          ▲ Front
-        </p>
+      {/* ── Bus Layout Container ── */}
+      {/* 👇 Changed from max-w-sm to max-w-md to widen the bus body */}
+      <div className="bg-[#f8f9fa] border border-gray-200 rounded-[3rem] p-6 sm:p-10 relative max-w-md mx-auto shadow-inner">
+        
+        {/* Steering Wheel PNG */}
+        <div className="flex justify-end mb-6 pr-2 sm:pr-6">
+          <img 
+            src="/drive.png" 
+            alt="Steering Wheel" 
+            // 👇 Scaled the steering wheel up slightly to match the larger seats
+            className="w-10 h-10 sm:w-12 sm:h-12 object-contain opacity-40" 
+          />
+        </div>
+        
         {rows}
       </div>
 
       {/* ── Summary & CTA ── */}
-      <div className="mt-6 border-t pt-4 px-2">
-        {bookingError && (
-          <div className="mb-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm font-medium">
-            {bookingError}
-          </div>
-        )}
-
-        <div className="flex justify-between items-end mb-4">
+      <div className="mt-6 md:mt-8 pt-5 md:pt-6 border-t border-gray-100 px-1 sm:px-2 flex flex-col gap-4">
+        
+        {/* Top line: Selected & Total */}
+        <div className="flex justify-between items-end">
           <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
-              Selected Seats
-            </p>
-            <p className="text-lg font-bold text-gray-800">
+            <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider font-bold mb-0.5 sm:mb-1">Selected</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">
               {selectedSeats.length > 0 ? selectedSeats.sort((a, b) => a - b).join(', ') : 'None'}
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total</p>
-            <p className="text-2xl font-bold text-[#B31B20]">
+            <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider font-bold mb-0.5 sm:mb-1">Total</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-[#B31B20]">
               ₹{(selectedSeats.length * seatPrice).toLocaleString('en-IN')}
             </p>
           </div>
         </div>
 
+        {/* Bottom line: Full-width button */}
         <button
-          onClick={handleProceedToBooking}
-          disabled={selectedSeats.length === 0 || bookingInProgress}
-          className={`w-full py-3.5 px-4 rounded-xl font-bold text-lg tracking-wide transition-all ${
-            selectedSeats.length > 0 && !bookingInProgress
-              ? 'bg-[#B31B20] hover:bg-[#8f1419] text-white shadow-md hover:shadow-lg'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          onClick={handleProceed}
+          disabled={selectedSeats.length === 0}
+          className={`w-full py-3 sm:py-3.5 rounded-lg font-bold text-xs sm:text-sm uppercase tracking-wider transition-all shadow-md ${
+            selectedSeats.length > 0 
+              ? 'bg-[#B31B20] hover:bg-[#8f1419] text-white' 
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
           }`}
         >
-          {bookingInProgress ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Confirming…
-            </span>
-          ) : (
-            'Proceed to Booking'
-          )}
+          Proceed to Booking
         </button>
+
       </div>
+      {/* 👆 ── THE FIX ENDS ── 👆 */}
+
     </div>
   );
 };
-
 export default SeatSelector;

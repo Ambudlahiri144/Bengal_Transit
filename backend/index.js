@@ -15,6 +15,10 @@ app.use(cors({
 }));
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'bengal-transit-super-secret-key';
 cron.schedule('* * * * *', async () => {
     try {
         const now = new Date();
@@ -36,7 +40,68 @@ cron.schedule('* * * * *', async () => {
 // Middleware
  // Allows your Next.js frontend to make requests
 app.use(express.json()); // Parses incoming JSON payloads
+// ── REGISTER ENDPOINT ──
+app.post('/api/auth/register', async (req, res) => {
+    const { name, email, password, role, secretAnswer } = req.body;
 
+    try {
+        // 1. Check if user already exists
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser) return res.status(400).json({ error: 'Email already in use.' });
+
+        // 2. Validate Admin Secret
+        if (role === 'ADMIN') {
+            if (!secretAnswer || secretAnswer.trim().toUpperCase() !== 'KNI') {
+                return res.status(403).json({ error: 'Incorrect security answer for Admin creation.' });
+            }
+        }
+
+        // 3. Hash the password securely
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // 4. Save to database
+        const user = await prisma.user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                role: role === 'ADMIN' ? 'ADMIN' : 'TRAVEL_AGENT'
+            }
+        });
+
+        // 5. Generate Token
+        const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '8h' });
+        res.status(201).json({ message: 'Account created successfully', token, user: { id: user.id, name: user.name, role: user.role } });
+
+    } catch (error) {
+        console.error("Registration error:", error);
+        res.status(500).json({ error: 'Internal server error during registration.' });
+    }
+});
+
+// ── LOGIN ENDPOINT ──
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        // 1. Find user
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+
+        // 2. Verify password
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) return res.status(401).json({ error: 'Invalid credentials.' });
+
+        // 3. Generate Token
+        const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '8h' });
+        res.status(200).json({ message: 'Logged in successfully', token, user: { id: user.id, name: user.name, role: user.role } });
+
+    } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ error: 'Internal server error during login.' });
+    }
+});
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'OK', message: 'Bus Booking API is running.' });
@@ -96,21 +161,14 @@ app.get('/api/schedules/search', async (req, res) => {
     }
 });
 app.post('/api/bookings/lock', async (req, res) => {
-    // 1. We no longer rely on the userId from the frontend
-    const { scheduleId, seatNumbers } = req.body;
+    // 1. Grab the REAL userId sent from the frontend
+    const { userId, scheduleId, seatNumbers, passengerName, passengerAge, passengerMobile, passengerEmail } = req.body;
 
     if (!scheduleId || !seatNumbers || !seatNumbers.length) {
         return res.status(400).json({ error: 'Missing required fields.' });
     }
 
     try {
-        // 2. TEMPORARY FIX: Dynamically grab the "Test Passenger" from the DB
-        const testUser = await prisma.user.findFirst();
-        if (!testUser) {
-            return res.status(500).json({ error: 'No user found. Please run seed script.' });
-        }
-        const activeUserId = testUser.id; // Automatically gets the correct ID (2, 5, etc.)
-
         // Start an Interactive Transaction
         const booking = await prisma.$transaction(async (tx) => {
             
@@ -139,11 +197,15 @@ app.post('/api/bookings/lock', async (req, res) => {
 
             const newBooking = await tx.booking.create({
                 data: {
-                    userId: activeUserId, // 3. Use the dynamically fetched ID here!
+                    userId: userId, // 👈 THE FIX: Now using the actual logged-in user's ID!
                     scheduleId,
                     seatNumbers,
                     status: 'Pending',
-                    lockedUntil: lockExpiration
+                    lockedUntil: lockExpiration,
+                    passengerName,
+                    passengerAge,
+                    passengerMobile,
+                    passengerEmail
                 }
             });
 
@@ -291,6 +353,28 @@ app.patch('/api/bookings/:id/confirm', async (req, res) => {
     } catch (error) {
         console.error("Confirm Booking Error:", error);
         res.status(500).json({ error: 'Internal server error while confirming booking.' });
+    }
+});
+app.get('/api/admin/bookings', async (req, res) => {
+    try {
+        const bookings = await prisma.booking.findMany({
+            include: {
+                user: { 
+                    select: { name: true, email: true, role: true } 
+                },
+                schedule: { 
+                    include: { bus: true } 
+                }
+            },
+            orderBy: { 
+                createdAt: 'desc' // Newest bookings first
+            }
+        });
+        
+        res.status(200).json(bookings);
+    } catch (error) {
+        console.error("Admin Bookings Error:", error);
+        res.status(500).json({ error: 'Internal server error while fetching data.' });
     }
 });
 // Start Server
