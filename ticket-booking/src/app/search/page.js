@@ -21,7 +21,6 @@ const FLIGHT_SCHEDULES = [
   { id: 'MAA_DEP_1655', label: 'Chennai (MAA) - Dep 04:55 PM', type: 'DEP', days: [0,1,3,5] }, 
 ];
 
-// ── CUSTOM DROPDOWN COMPONENT ──
 const CustomDropdown = ({ value, options, onChange, placeholder, isFlight }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -51,10 +50,7 @@ const CustomDropdown = ({ value, options, onChange, placeholder, isFlight }) => 
           </span>
           <span
             className="block h-[2px] rounded-full mt-0.5 transition-all duration-300 ease-out"
-            style={{
-              background: 'linear-gradient(90deg, #B31B20 0%, transparent 100%)',
-              width: isOpen ? '100%' : '0%',
-            }}
+            style={{ background: 'linear-gradient(90deg, #B31B20 0%, transparent 100%)', width: isOpen ? '100%' : '0%' }}
           />
         </div>
         <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${isOpen ? 'bg-[rgba(179,27,32,0.12)] rotate-180' : 'bg-black/[0.04] group-hover:bg-[rgba(179,27,32,0.08)]'}`}>
@@ -80,8 +76,7 @@ const CustomDropdown = ({ value, options, onChange, placeholder, isFlight }) => 
                       setIsOpen(false);
                     }
                   }}
-                  className={`relative px-3 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold transition-colors duration-150 select-none
-                    ${isDisabled ? 'text-gray-300 cursor-not-allowed italic' : isSelected ? 'text-[#B31B20] cursor-pointer' : 'text-gray-600 hover:text-[#B31B20] cursor-pointer'}`}
+                  className={`relative px-3 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold transition-colors duration-150 select-none ${isDisabled ? 'text-gray-300 cursor-not-allowed italic' : isSelected ? 'text-[#B31B20] cursor-pointer' : 'text-gray-600 hover:text-[#B31B20] cursor-pointer'}`}
                   style={{ background: isSelected ? 'linear-gradient(90deg, rgba(179,27,32,0.05) 0%, transparent 100%)' : undefined }}
                 >
                   {!isDisabled && (
@@ -107,7 +102,7 @@ function SearchContent() {
   const initialOrigin = searchParams.get('origin') || 'KNI Airport';
   const initialDest = searchParams.get('destination') || 'Nababhat Bus Stop';
   const initialDate = searchParams.get('date') || '';
-  const initialFlight = searchParams.get('flight') || 'ALL'; // 👈 Fetch Flight from URL
+  const initialFlight = searchParams.get('flight') || 'ALL';
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -117,18 +112,22 @@ function SearchContent() {
   const [origin, setOrigin] = useState(initialOrigin);
   const [destination, setDestination] = useState(initialDest);
   const [date, setDate] = useState(initialDate || minDate);
-  const [flight, setFlight] = useState(initialFlight); // 👈 Flight State
+  const [flight, setFlight] = useState(initialFlight);
   const [swapped, setSwapped] = useState(false);
 
   // Data State
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // 👇 NEW: Admin Security State 👇
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Filter State
   const [selectedTimes, setSelectedTimes] = useState([]);
+  const [priceLimit, setPriceLimit] = useState(150); 
 
-  // 👇 DYNAMIC FLIGHT FILTER LOGIC (Synced with Home Page) 👇
+  // DYNAMIC FLIGHT FILTER LOGIC
   const isArrival = origin === 'KNI Airport';
   const selectedDayOfWeek = new Date(date).getDay();
   
@@ -153,25 +152,39 @@ function SearchContent() {
     )
   ];
 
-  // ── Fetch Data ──
+  // ── Fetch Data & Check Auth ──
   useEffect(() => {
+    // 1. Check if user is ADMIN
+    const userStr = sessionStorage.getItem('bengal_transit_user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setIsAdmin(user.role === 'ADMIN');
+    }
+
+    // 2. Fetch Schedules
     const fetchSchedules = async () => {
       setLoading(true);
       setError('');
       try {
-        // 👈 Passed initialFlight into the API call 👇
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/schedules/search?origin=${encodeURIComponent(initialOrigin)}&destination=${encodeURIComponent(initialDest)}&date=${initialDate}&flight=${initialFlight}`
         );
         if (!res.ok) throw new Error('Failed to fetch schedules');
         const data = await res.json();
         setSchedules(data);
+        
+        if (data.length > 0) {
+          const maxP = Math.max(...data.map(s => Number(s.price) || 150));
+          setPriceLimit(maxP);
+        }
+
       } catch (err) {
         setError('System error. Please try again.');
       } finally {
         setLoading(false);
       }
     };
+    
     if (initialOrigin && initialDest && initialDate) {
       fetchSchedules();
     }
@@ -195,24 +208,56 @@ function SearchContent() {
     router.push(`/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${date}&flight=${flight}`);
   };
 
-  // ── Formatting ──
+  // 👇 NEW: Delete Schedule Logic 👇
+  const handleDeleteRoute = async (scheduleId) => {
+    const confirmDelete = window.confirm("🚨 Are you sure you want to permanently delete this route? This action cannot be undone.");
+    
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/admin/schedules/${scheduleId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!res.ok) throw new Error('Failed to delete route from database.');
+      
+      // Instantly remove it from the UI without reloading
+      setSchedules(prev => prev.filter(s => s.id !== scheduleId));
+      
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // ── Formatting & Math ──
   const formatTime = (dt) => new Date(dt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
   const formatDate = (dt) => new Date(dt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   const getDuration = (dep, arr) => {
     const diffMs = new Date(arr) - new Date(dep);
     return `${Math.floor(diffMs / 3_600_000)}h ${Math.floor((diffMs % 3_600_000) / 60_000)}m`;
   };
+  
+  const formatPrice = (p) => Number(p).toFixed(2).replace(/\.00$/, '');
+
+  const prices = schedules.map(s => Number(s.price) || 150);
+  const minDataPrice = prices.length > 0 ? Math.min(...prices) : 150;
+  const maxDataPrice = prices.length > 0 ? Math.max(...prices) : 150;
 
   // ── Filter Logic ──
   const toggleTimeFilter = (timeLabel) => {
     setSelectedTimes(prev => prev.includes(timeLabel) ? prev.filter(t => t !== timeLabel) : [...prev, timeLabel]);
   };
-  const clearFilters = () => setSelectedTimes([]);
+  
+  const clearFilters = () => {
+    setSelectedTimes([]);
+    setPriceLimit(maxDataPrice); 
+  };
 
   const filteredSchedules = schedules.filter(schedule => {
+    const sPrice = Number(schedule.price) || 150;
+    if (sPrice > priceLimit) return false;
     if (selectedTimes.length === 0) return true;
     const hour = new Date(schedule.departureTime).getHours();
-    
     return selectedTimes.some(filter => {
       if (filter === 'Early Morning') return hour >= 4 && hour < 8;
       if (filter === 'Morning') return hour >= 8 && hour < 12;
@@ -242,26 +287,22 @@ function SearchContent() {
               <span className="hidden lg:inline">Back</span>
             </button>
 
-            {/* From */}
             <div className="w-full xl:flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm">
               <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">From</label>
               <CustomDropdown value={origin} options={locationOptions} onChange={setOrigin} placeholder="Select Origin" />
             </div>
             
-            {/* Swap Button */}
             <button type="button" onClick={handleSwap} className="p-2 text-gray-400 hover:text-[#B31B20] transition-colors -my-2 xl:my-0 z-10 bg-white rounded-full shrink-0">
               <svg className={`w-5 h-5 transition-transform ${swapped ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
             </button>
 
-            {/* To */}
             <div className="w-full xl:flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm">
               <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">To</label>
               <CustomDropdown value={destination} options={locationOptions} onChange={setDestination} placeholder="Select Destination" />
             </div>
 
-            {/* Depart */}
             <div className="w-full xl:w-40 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm relative shrink-0">
               <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Depart</label>
               <input 
@@ -274,13 +315,11 @@ function SearchContent() {
               />
             </div>
 
-            {/* Flight Selector */}
             <div className="w-full xl:flex-[1.2] border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm">
-              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Travelling Flight</label>
-              <CustomDropdown value={flight} options={flightOptions} onChange={setFlight} placeholder="Select Travelling Flight" isFlight={true} />
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Connecting Flight</label>
+              <CustomDropdown value={flight} options={flightOptions} onChange={setFlight} placeholder="Select Connecting Flight" isFlight={true} />
             </div>
 
-            {/* Search Button */}
             <button type="submit" className="w-full xl:w-auto bg-[#B31B20] hover:bg-[#8f1419] text-white rounded-xl min-h-[50px] font-bold text-sm md:text-base uppercase tracking-wider transition-colors shadow-md px-6 shrink-0">
               Update
             </button>
@@ -299,12 +338,11 @@ function SearchContent() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
                 Filters
               </h2>
-              {selectedTimes.length > 0 && (
+              {(selectedTimes.length > 0 || priceLimit < maxDataPrice) && (
                 <button onClick={clearFilters} className="text-[10px] text-[#B31B20] font-bold uppercase hover:underline">Clear all</button>
               )}
             </div>
 
-            {/* Departure Time */}
             <div className="mb-6">
               <p className="text-xs font-bold text-gray-900 mb-3">Departure Time</p>
               <div className="grid grid-cols-2 gap-2">
@@ -345,14 +383,27 @@ function SearchContent() {
             </div>
 
             <div>
-              <p className="text-xs font-bold text-gray-900 mb-3 flex justify-between">Price <span>₹150</span></p>
-              <div className="w-full h-1 bg-gray-200 rounded overflow-hidden">
-                <div className="w-full h-full bg-[#B31B20]"></div>
-              </div>
-              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-                <span>₹150</span><span>₹150</span>
+              <p className="text-xs font-bold text-gray-900 mb-3 flex justify-between">
+                Max Price <span className="text-[#B31B20]">₹{formatPrice(priceLimit)}</span>
+              </p>
+              
+              <input 
+                type="range" 
+                min={minDataPrice} 
+                max={maxDataPrice} 
+                step="10"
+                value={priceLimit} 
+                onChange={(e) => setPriceLimit(Number(e.target.value))}
+                className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#B31B20] focus:outline-none focus:ring-2 focus:ring-[#B31B20] focus:ring-offset-2"
+                disabled={minDataPrice === maxDataPrice} 
+              />
+              
+              <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-medium">
+                <span>₹{formatPrice(minDataPrice)}</span>
+                <span>₹{formatPrice(maxDataPrice)}</span>
               </div>
             </div>
+
           </div>
         </aside>
 
@@ -386,7 +437,7 @@ function SearchContent() {
                        <p className="text-xs text-gray-500 mt-0.5">{s.bus.type}</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-xl font-bold text-[#B31B20]">₹150</p>
+                       <p className="text-xl font-bold text-[#B31B20]">₹{formatPrice(s.price || 150)}</p>
                        <p className="text-xs text-gray-500">per seat</p>
                     </div>
                   </div>
@@ -413,8 +464,23 @@ function SearchContent() {
                     </div>
                   </div>
 
-                  {/* Bottom Row: Actions */}
-                  <div className="flex justify-between items-center">
+                  {/* 👇 UPDATED Bottom Row: Actions + Admin Controls 👇 */}
+                  <div className="flex justify-between items-center mt-2">
+                    
+                    {/* If Admin, show Delete Button. Otherwise, keep it empty to maintain flex layout */}
+                    {isAdmin ? (
+                      <button 
+                        onClick={() => handleDeleteRoute(s.id)}
+                        className="text-[10px] sm:text-xs font-bold text-gray-400 hover:text-red-600 uppercase tracking-widest transition-colors flex items-center gap-1.5 p-2 -ml-2 rounded-lg hover:bg-red-50"
+                        title="Permanently remove this route"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        Remove Route
+                      </button>
+                    ) : (
+                      <div aria-hidden="true" />
+                    )}
+
                     <button 
                       onClick={() => router.push(`/book/${s.id}`)}
                       className="bg-[#B31B20] hover:bg-[#8f1419] text-white px-6 py-2 rounded font-bold text-sm transition-colors shadow-sm"

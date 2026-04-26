@@ -378,6 +378,66 @@ app.get('/api/admin/bookings', async (req, res) => {
         res.status(500).json({ error: 'Internal server error while fetching data.' });
     }
 });
+// ── ADD NEW ROUTE (ADMIN ONLY) ──
+app.post('/api/admin/schedules', async (req, res) => {
+    try {
+        const {
+            operatorName, busNumber, capacity, type,
+            origin, destination, departureDateTime, durationMinutes,
+            price, cateredFlights
+        } = req.body;
+
+        // 1. Find or create the Bus based on its Number Plate
+        let bus = await prisma.bus.findUnique({ where: { busNumber } });
+        if (!bus) {
+            bus = await prisma.bus.create({
+                data: { operatorName, busNumber, capacity: parseInt(capacity), type }
+            });
+        }
+
+        // 2. Calculate Arrival Time dynamically
+        const depTime = new Date(departureDateTime);
+        const arrTime = new Date(depTime.getTime() + parseInt(durationMinutes) * 60000); // 60000ms = 1 min
+
+        // 3. Create the Schedule
+        const schedule = await prisma.schedule.create({
+            data: {
+                origin,
+                destination,
+                departureTime: depTime,
+                arrivalTime: arrTime,
+                price: parseFloat(price),
+                cateredFlights: cateredFlights.join(','), // Convert array to comma-separated string
+                busId: bus.id
+            }
+        });
+
+        res.status(201).json({ message: 'Route added successfully!', schedule });
+    } catch (error) {
+        console.error("Add Route Error:", error);
+        res.status(500).json({ error: 'Failed to create new route.' });
+    }
+});
+app.delete('/api/admin/schedules/:id', async (req, res) => {
+    try {
+        const scheduleId = parseInt(req.params.id);
+        
+        // 1. First, delete any test bookings attached to this route so the database doesn't crash from foreign key constraints
+        await prisma.booking.deleteMany({ 
+            where: { scheduleId: scheduleId } 
+        });
+
+        // 2. Delete the actual schedule
+        await prisma.schedule.delete({
+            where: { id: scheduleId }
+        });
+
+        res.status(200).json({ message: 'Route permanently deleted.' });
+    } catch (error) {
+        console.error("Delete Route Error:", error);
+        res.status(500).json({ error: 'Failed to delete route.' });
+    }
+});
 // Start Server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

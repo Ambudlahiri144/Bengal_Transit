@@ -303,10 +303,18 @@ export default function Home() {
 
       <div className="absolute top-8 right-4 sm:top-10 sm:right-10 md:top-16 md:right-16 z-20 flex items-center gap-2 sm:gap-4">
         {userRole === 'ADMIN' && (
-          <button onClick={() => router.push('/admin')} className="flex items-center gap-1.5 bg-red-50 text-[#B31B20] border border-red-100 hover:bg-[#B31B20] hover:text-white px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors shadow-md">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Admin Panel
-          </button>
+          <>
+            <button onClick={() => router.push('/admin')} className="flex items-center gap-1.5 bg-red-50 text-[#B31B20] border border-red-100 hover:bg-[#B31B20] hover:text-white px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors shadow-md">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              <span className="hidden sm:inline">Admin Panel</span>
+              <span className="sm:hidden">Panel</span>
+            </button>
+            <button onClick={() => router.push('/admin/add-route')} className="flex items-center gap-1.5 bg-red-50 text-[#B31B20] border border-red-100 hover:bg-[#B31B20] hover:text-white px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors shadow-md">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+              <span className="hidden sm:inline">Add Route</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          </>
         )}
         <button onClick={handleLogout} className="bg-red-50 text-[#B31B20] border border-red-100 hover:bg-[#B31B20] hover:text-white px-3 sm:px-4 py-2 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors shadow-md">
           Sign Out
