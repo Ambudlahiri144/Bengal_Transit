@@ -3,6 +3,187 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import SeatSelector from '../../../components/SeatSelector';
+const FLIGHT_SCHEDULES = [
+  { id: 'DEL_ARR_1240', label: 'Delhi (DEL) - Arr 12:40 PM', type: 'ARR' },
+  
+  { id: 'DEL_DEP_1830', label: 'Delhi (DEL) - Dep 06:30 PM', type: 'DEP' },
+  { id: 'HYD_ARR_1800', label: 'Hyderabad (HYD) - Arr 06:00 PM', type: 'ARR' },
+  { id: 'HYD_DEP_1310', label: 'Hyderabad (HYD) - Dep 01:10 PM', type: 'DEP' },
+  { id: 'MUM_ARR_1340', label: 'Mumbai (MUM) - Arr 01:40 PM', type: 'ARR' },
+  { id: 'MUM_DEP_1425', label: 'Mumbai (MUM) - Dep 02:25 PM', type: 'DEP' },
+  { id: 'BLR_ARR_1355', label: 'Bangalore (BLR) - Arr 01:55 PM', type: 'ARR' },
+  { id: 'BLR_DEP_1425', label: 'Bangalore (BLR) - Dep 02:25 PM', type: 'DEP' },
+  { id: 'MAA_ARR_1440', label: 'Chennai (MAA) - Arr 02:40 PM', type: 'ARR' },
+  { id: 'MAA_DEP_1550', label: 'Chennai (MAA) - Dep 03:50 PM', type: 'DEP' },
+  { id: 'MAA_ARR_1615', label: 'Chennai (MAA) - Arr 04:15 PM', type: 'ARR' },
+  { id: 'MAA_DEP_1655', label: 'Chennai (MAA) - Dep 04:55 PM', type: 'DEP' },
+];
+// Add this import at the top
+import { useRef } from 'react';
+
+// Paste this component into the file, above BookingPage
+const ModalDropdown = ({ value, options, onChange, disabled }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(o => o.value === value);
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+
+      {/* Trigger — mirrors your form input style */}
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setIsOpen(!isOpen); }}
+        disabled={disabled}
+        className={`w-full bg-white border rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-left
+          flex items-center justify-between gap-2 transition-colors
+          ${disabled ? 'opacity-50 cursor-not-allowed border-gray-300' : 'cursor-pointer'}
+          ${isOpen
+            ? 'border-[#B31B20] ring-1 ring-[#B31B20]'
+            : 'border-gray-300 hover:border-gray-400'
+          }`}
+      >
+        <div className="flex-1 min-w-0">
+          <span className={`block truncate font-medium leading-snug
+            ${selectedOption && selectedOption.value !== ''
+              ? 'text-gray-900'
+              : 'text-gray-400'
+            }`}>
+            {selectedOption && selectedOption.value !== ''
+              ? selectedOption.label
+              : 'Select Flight'}
+          </span>
+          {/* Red underline sweep on open */}
+          <span
+            className="block h-[1.5px] rounded-full mt-1 transition-all duration-300 ease-out"
+            style={{
+              background: 'linear-gradient(90deg, #B31B20 0%, transparent 100%)',
+              width: isOpen ? '100%' : '0%',
+            }}
+          />
+        </div>
+
+        {/* Chevron pill */}
+        <span
+          className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300
+            ${isOpen
+              ? 'bg-[rgba(179,27,32,0.12)] rotate-180'
+              : 'bg-black/[0.04]'
+            }`}
+        >
+          <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
+      </button>
+
+      {/* Panel */}
+      {isOpen && (
+        <div
+          className="absolute z-[60] bottom-full left-0 mb-2 w-full py-1.5 rounded-[14px] overflow-hidden"
+          style={{
+            background: 'rgba(255,255,255,0.97)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(179,27,32,0.12)',
+            boxShadow: '0 2px 8px rgba(179,27,32,0.06), 0 -8px 32px rgba(0,0,0,0.10)',
+            animation: 'modalDropIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both',
+          }}
+        >
+          <style>{`
+            @keyframes modalDropIn {
+              from { opacity: 0; transform: scaleY(0.88) translateY(6px); }
+              to   { opacity: 1; transform: scaleY(1) translateY(0); }
+            }
+            @keyframes modalItemIn {
+              from { opacity: 0; transform: translateX(-5px); }
+              to   { opacity: 1; transform: translateX(0); }
+            }
+          `}</style>
+
+          <div className="max-h-52 overflow-y-auto">
+            {options.map((opt, idx) => {
+              const isSelected = opt.value === value;
+              const isPlaceholder = opt.value === '';
+
+              return (
+                <div
+                  key={opt.value + idx}
+                  onClick={() => {
+                    if (!isPlaceholder) {
+                      onChange({ target: { name: 'flight', value: opt.value } });
+                      setIsOpen(false);
+                    }
+                  }}
+                  className={`relative px-4 py-2.5 flex items-center gap-2.5 text-sm
+                    transition-colors duration-150 select-none
+                    ${isPlaceholder
+                      ? 'text-gray-400 cursor-default italic font-medium'
+                      : isSelected
+                        ? 'text-[#B31B20] font-semibold cursor-pointer'
+                        : 'text-gray-600 font-semibold hover:text-[#B31B20] cursor-pointer'
+                    }`}
+                  style={{
+                    animation: `modalItemIn 0.18s ${idx * 0.025}s both`,
+                    background: isSelected
+                      ? 'linear-gradient(90deg, rgba(179,27,32,0.08) 0%, transparent 90%)'
+                      : undefined,
+                  }}
+                  onMouseEnter={e => {
+                    if (!isSelected && !isPlaceholder)
+                      e.currentTarget.style.background = 'rgba(179,27,32,0.05)';
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSelected)
+                      e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  {/* Left accent bar */}
+                  {!isPlaceholder && (
+                    <span
+                      className="absolute left-0 top-[20%] w-[3px] rounded-r-[3px] transition-all duration-200"
+                      style={{
+                        height: '60%',
+                        background: '#B31B20',
+                        opacity: isSelected ? 1 : 0,
+                        transform: isSelected ? 'scaleY(1)' : 'scaleY(0.4)',
+                      }}
+                    />
+                  )}
+
+                  {/* Dot indicator */}
+                  {!isPlaceholder && (
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors duration-150"
+                      style={{
+                        border: `1.5px solid ${isSelected ? '#B31B20' : 'currentColor'}`,
+                        background: isSelected ? '#B31B20' : 'transparent',
+                        opacity: isSelected ? 1 : 0.4,
+                      }}
+                    />
+                  )}
+
+                  <span className="leading-snug truncate">{opt.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function BookingPage() {
   const params = useParams();
@@ -23,8 +204,15 @@ export default function BookingPage() {
     name: '',
     age: '',
     mobile: '',
-    email: ''
+    email: '',
+    flight: ''
   });
+  useEffect(() => {
+    const savedFlight = sessionStorage.getItem('bengal_transit_preferred_flight');
+    if (savedFlight) {
+      setPassengerDetails(prev => ({ ...prev, flight: savedFlight }));
+    }
+  }, []);
 
   useEffect(() => {
     if (!scheduleId) return;
@@ -77,7 +265,8 @@ export default function BookingPage() {
           passengerName: passengerDetails.name,
           passengerAge: parseInt(passengerDetails.age),
           passengerMobile: passengerDetails.mobile,
-          passengerEmail: passengerDetails.email
+          passengerEmail: passengerDetails.email,
+          flightConnection: passengerDetails.flight
         }),
       });
 
@@ -296,6 +485,26 @@ export default function BookingPage() {
                   type="email" name="email" value={passengerDetails.email} onChange={handleInputChange} disabled={bookingInProgress}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#B31B20] focus:ring-1 focus:ring-[#B31B20] transition-colors" 
                   placeholder="passenger@example.com" 
+                />
+              </div>
+              {/* 👇 NEW FLIGHT SELECTOR 👇 */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 block">
+                  {scheduleInfo?.origin === 'KNI Airport'
+                    ? 'Which flight are you arriving from?'
+                    : 'Which flight are you departing on?'}
+                </label>
+                <ModalDropdown
+                  value={passengerDetails.flight}
+                  disabled={bookingInProgress}
+                  onChange={handleInputChange}
+                  options={[
+                    { value: '', label: '— Select Flight —' },
+                    ...FLIGHT_SCHEDULES
+                      .filter(f => f.type === (scheduleInfo?.origin === 'KNI Airport' ? 'ARR' : 'DEP'))
+                      .map(f => ({ value: f.id, label: f.label })),
+                    { value: 'NONE', label: 'Not a flight passenger' },
+                  ]}
                 />
               </div>
 

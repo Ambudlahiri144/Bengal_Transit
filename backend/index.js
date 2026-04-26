@@ -162,7 +162,7 @@ app.get('/api/schedules/search', async (req, res) => {
 });
 app.post('/api/bookings/lock', async (req, res) => {
     // 1. Grab the REAL userId sent from the frontend
-    const { userId, scheduleId, seatNumbers, passengerName, passengerAge, passengerMobile, passengerEmail } = req.body;
+    const { userId, scheduleId, seatNumbers, passengerName, passengerAge, passengerMobile, passengerEmail, flightConnection } = req.body;
 
     if (!scheduleId || !seatNumbers || !seatNumbers.length) {
         return res.status(400).json({ error: 'Missing required fields.' });
@@ -205,7 +205,8 @@ app.post('/api/bookings/lock', async (req, res) => {
                     passengerName,
                     passengerAge,
                     passengerMobile,
-                    passengerEmail
+                    passengerEmail,
+                    flightConnection
                 }
             });
 

@@ -40,26 +40,34 @@ model Schedule {
   destination   String
   departureTime DateTime
   arrivalTime   DateTime
+  
   price         Decimal
+  cateredFlights  String?   
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime? @updatedAt
   bus           Bus       @relation(fields: [busId], references: [id], onDelete: Cascade)
   bookings      Booking[]
 }
 
 model Booking {
-  id              Int       @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   userId          Int
   scheduleId      Int
   seatNumbers     Int[]
-  status          String    @default("Pending")
-  lockedUntil     DateTime? 
-  createdAt       DateTime  @default(now())
-
-  
+  status          String   @default("Pending")
+  lockedUntil     DateTime?
   passengerName   String?
   passengerAge    Int?
   passengerMobile String?
   passengerEmail  String?
+  
+  flightConnection String? 
 
-  user            User      @relation(fields: [userId], references: [id])
-  schedule        Schedule  @relation(fields: [scheduleId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime? @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule        Schedule @relation(fields: [scheduleId], references: [id])
 }

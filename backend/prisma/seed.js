@@ -1,45 +1,46 @@
-// backend/prisma/seed.js
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs'); 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Wiping old dummy data...');
-  await prisma.booking.deleteMany();
-  await prisma.schedule.deleteMany();
-  await prisma.bus.deleteMany();
-  await prisma.user.deleteMany();
+  console.log('🌱 Starting database seed...');
 
-  console.log('Creating default Admin test user...');
-  
-  // Hash a real password so you can actually log in with this account!
-  const hashedPassword = await bcrypt.hash('admin123', 10); 
+  // 1. Clear old schedules
+  await prisma.booking.deleteMany({});
+  await prisma.schedule.deleteMany({});
+  await prisma.bus.deleteMany({});
 
-  const user = await prisma.user.create({
-    data: {
-      name: 'System Admin',
-      email: 'admin@bengaltransit.in',
-      password: hashedPassword, 
-      role: 'ADMIN'             
-    }
-  });
-
-  console.log('Creating real bus fleet...');
-  const generateBusNumber = () => `WB-${Math.floor(10 + Math.random() * 90)}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  // 🚌 Created 3 buses instead of 2 for the different time slots
+  // 2. Create the Express Buses
   const bus1 = await prisma.bus.create({
-    data: { busNumber: generateBusNumber(), capacity: 15, type: 'Premium Seater 1x2', operatorName: 'Bengal Transit Express' }
+    data: { operatorName: 'Bengal Transit Express', busNumber: 'WB-72-2969', capacity: 25, type: 'AC Seater' }
   });
   const bus2 = await prisma.bus.create({
-    data: { busNumber: generateBusNumber(), capacity: 15, type: 'Premium Seater 1x2', operatorName: 'Bengal Transit Express' }
-  });
-  const bus3 = await prisma.bus.create({
-    data: { busNumber: generateBusNumber(), capacity: 15, type: 'Premium Seater 1x2', operatorName: 'Bengal Transit Express' }
+    data: { operatorName: 'Bengal Transit Express', busNumber: 'WB-15-6251', capacity: 25, type: 'AC Seater' }
   });
 
-  console.log('Generating daily schedules for the next 30 days...');
-  const schedules = [];
+  // 3. Define the Master Route Data with EXACT Flight Identifiers
+  const masterRoutes = [
+    // ── BARDHAMAN ↔ AIRPORT ROUTE ──
+    { org: 'Nababhat Bus Stop', dest: 'KNI Airport', depH: 10, depM: 0,  arrH: 11, arrM: 45,  flights: 'HYD_DEP_1310,MUM_DEP_1425,BLR_DEP_1425,MAA_DEP_1550,MAA_DEP_1655', busId: bus1.id },
+    { org: 'KNI Airport', dest: 'Nababhat Bus Stop', depH: 12, depM: 0,  arrH: 13, arrM: 45,  flights: 'HYD_DEP_1310,MUM_DEP_1425,BLR_DEP_1425,MAA_DEP_1550,MAA_DEP_1655', busId: bus1.id },
+    { org: 'KNI Airport', dest: 'Nababhat Bus Stop', depH: 18, depM: 30, arrH: 20, arrM: 15, flights: 'HYD_ARR_1800,MAA_ARR_1615', busId: bus1.id },
+    { org: 'Nababhat Bus Stop', dest: 'KNI Airport', depH: 20, depM: 30, arrH: 22, arrM: 15, flights: 'HYD_ARR_1800,MAA_ARR_1615', busId: bus1.id },
+    
+    
+    // ── DURGAPUR CITY CENTRE ↔ AIRPORT ROUTE ──
+    { org: 'KNI Airport', dest: 'City Centre', depH: 13, depM: 0,  arrH: 14, arrM: 45, flights: 'DEL_ARR_1240,MAA_DEP_1550,MAA_DEP_1655', busId: bus2.id },
+    { org: 'City Centre', dest: 'KNI Airport', depH: 13, depM: 30,  arrH: 15, arrM: 15, flights: 'DEL_ARR_1240,MAA_DEP_1550,MAA_DEP_1655', busId: bus2.id },
+    { org: 'KNI Airport', dest: 'City Centre', depH: 14, depM: 0, arrH: 15, arrM: 45,  flights: 'DEL_ARR_1240,MAA_DEP_1550,MAA_DEP_1655', busId: bus2.id },
+    
+    { org: 'KNI Airport', dest: 'City Centre', depH: 14, depM: 15, arrH: 16, arrM: 0, flights: 'MUM_ARR_1340,BLR_ARR_1355,MAA_DEP_1550,MAA_DEP_1655', busId: bus2.id },
+    { org: 'City Centre', dest: 'KNI Airport', depH: 14, depM: 45, arrH: 16, arrM: 30, flights: 'MUM_ARR_1340,BLR_ARR_1355,MAA_DEP_1550,MAA_DEP_1655', busId: bus2.id },
+    { org: 'KNI Airport', dest: 'City Centre', depH: 15, depM: 15, arrH: 17, arrM: 0, flights: 'MUM_ARR_1340,BLR_ARR_1355,MAA_DEP_1550,MAA_DEP_1655', busId: bus2.id },
+    
+    { org: 'KNI Airport', dest: 'City Centre', depH: 16, depM: 30, arrH: 18, arrM: 15, flights: 'MAA_ARR_1615,MAA_ARR_1440,DEL_DEP_1830', busId: bus2.id },
+    { org: 'City Centre', dest: 'KNI Airport', depH: 17, depM: 0, arrH: 18, arrM: 45, flights: 'MAA_ARR_1615,MAA_ARR_1440,DEL_DEP_1830', busId: bus2.id },
+    { org: 'KNI Airport', dest: 'City Centre', depH: 17, depM: 30, arrH: 19, arrM: 15, flights: 'MAA_ARR_1615,MAA_ARR_1440,DEL_DEP_1830', busId: bus2.id },
+  ];
+
+  // 4. Generate schedules for the next 30 days
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -47,40 +48,30 @@ async function main() {
     const currentDate = new Date(today);
     currentDate.setDate(today.getDate() + i);
 
-    // Helper function to make setting times much cleaner
-    const createTime = (hours, mins) => {
-      const d = new Date(currentDate);
-      d.setHours(hours, mins, 0, 0);
-      return d;
-    };
+    for (const route of masterRoutes) {
+      const depTime = new Date(currentDate);
+      depTime.setHours(route.depH, route.depM, 0, 0);
 
-    // ── ROUTE 1: KNI to Nababhat (1h 45m journey) ──
-    // Morning (8:30 AM - 10:15 AM)
-    schedules.push({ busId: bus1.id, origin: 'KNI Airport', destination: 'Nababhat Bus Stop', departureTime: createTime(8, 30), arrivalTime: createTime(10, 15), price: 150.00 });
-    // Afternoon (2:00 PM - 3:45 PM)
-    schedules.push({ busId: bus2.id, origin: 'KNI Airport', destination: 'Nababhat Bus Stop', departureTime: createTime(14, 0), arrivalTime: createTime(15, 45), price: 150.00 });
-    // Evening (6:15 PM - 8:00 PM)
-    schedules.push({ busId: bus3.id, origin: 'KNI Airport', destination: 'Nababhat Bus Stop', departureTime: createTime(18, 15), arrivalTime: createTime(20, 0), price: 150.00 });
+      const arrTime = new Date(currentDate);
+      arrTime.setHours(route.arrH, route.arrM, 0, 0);
 
-    // ── ROUTE 2: Nababhat to KNI (1h 45m journey) ──
-    // Morning (11:00 AM - 12:45 PM)
-    schedules.push({ busId: bus1.id, origin: 'Nababhat Bus Stop', destination: 'KNI Airport', departureTime: createTime(11, 0), arrivalTime: createTime(12, 45), price: 150.00 });
-    // Afternoon (4:30 PM - 6:15 PM)
-    schedules.push({ busId: bus2.id, origin: 'Nababhat Bus Stop', destination: 'KNI Airport', departureTime: createTime(16, 30), arrivalTime: createTime(18, 15), price: 150.00 });
-    // Night (9:00 PM - 10:45 PM)
-    schedules.push({ busId: bus3.id, origin: 'Nababhat Bus Stop', destination: 'KNI Airport', departureTime: createTime(21, 0), arrivalTime: createTime(22, 45), price: 150.00 });
+      await prisma.schedule.create({
+        data: {
+          origin: route.org,
+          destination: route.dest,
+          departureTime: depTime,
+          arrivalTime: arrTime,
+          busId: route.busId,
+          cateredFlights: route.flights,
+          price: 150 
+        }
+      });
+    }
   }
 
-  await prisma.schedule.createMany({ data: schedules });
-  console.log(`✅ Successfully generated ${schedules.length} schedules!`);
-  console.log(`✅ Test Admin Created! Email: admin@bengaltransit.in | Password: admin123`);
+  console.log('✅ Seed complete! New routes and explicit flight ID mappings generated.');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

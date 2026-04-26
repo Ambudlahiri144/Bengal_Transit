@@ -1,7 +1,103 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+
+const LOCATIONS = ['KNI Airport', 'Nababhat Bus Stop', 'City Centre'];
+
+// ── MASTER FLIGHT SCHEDULE MATRIX ──
+const FLIGHT_SCHEDULES = [
+  { id: 'DEL_ARR_1240', label: 'Delhi (DEL) - Arr 12:40 PM', type: 'ARR', days: [0,1,2,3,4,5,6] },
+  { id: 'DEL_DEP_1830', label: 'Delhi (DEL) - Dep 06:30 PM', type: 'DEP', days: [0,1,2,3,4,5,6] },
+  { id: 'HYD_ARR_1800', label: 'Hyderabad (HYD) - Arr 06:00 PM', type: 'ARR', days: [0,1,2,3,4,5,6] },
+  { id: 'HYD_DEP_1310', label: 'Hyderabad (HYD) - Dep 01:10 PM', type: 'DEP', days: [0,1,2,3,4,5,6] },
+  { id: 'MUM_ARR_1340', label: 'Mumbai (MUM) - Arr 01:40 PM', type: 'ARR', days: [0,1,3,4,5] },
+  { id: 'MUM_DEP_1425', label: 'Mumbai (MUM) - Dep 02:25 PM', type: 'DEP', days: [0,1,3,4,5] },
+  { id: 'BLR_ARR_1355', label: 'Bangalore (BLR) - Arr 01:55 PM', type: 'ARR', days: [0,1,2,3,4,5,6] },
+  { id: 'BLR_DEP_1425', label: 'Bangalore (BLR) - Dep 02:25 PM', type: 'DEP', days: [0,1,2,3,4,5,6] },
+  { id: 'MAA_ARR_1440', label: 'Chennai (MAA) - Arr 02:40 PM', type: 'ARR', days: [2] }, 
+  { id: 'MAA_DEP_1550', label: 'Chennai (MAA) - Dep 03:50 PM', type: 'DEP', days: [2] }, 
+  { id: 'MAA_ARR_1615', label: 'Chennai (MAA) - Arr 04:15 PM', type: 'ARR', days: [0,1,3,5] }, 
+  { id: 'MAA_DEP_1655', label: 'Chennai (MAA) - Dep 04:55 PM', type: 'DEP', days: [0,1,3,5] }, 
+];
+
+// ── CUSTOM DROPDOWN COMPONENT ──
+const CustomDropdown = ({ value, options, onChange, placeholder, isFlight }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(o => o.value === value);
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-transparent border-0 p-0 cursor-pointer flex items-center justify-between gap-2 group"
+      >
+        <div className="flex-1 min-w-0 text-left">
+          <span className={`block truncate font-bold text-gray-900 leading-snug ${isFlight ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'}`}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+          <span
+            className="block h-[2px] rounded-full mt-0.5 transition-all duration-300 ease-out"
+            style={{
+              background: 'linear-gradient(90deg, #B31B20 0%, transparent 100%)',
+              width: isOpen ? '100%' : '0%',
+            }}
+          />
+        </div>
+        <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${isOpen ? 'bg-[rgba(179,27,32,0.12)] rotate-180' : 'bg-black/[0.04] group-hover:bg-[rgba(179,27,32,0.08)]'}`}>
+          <svg className="w-2.5 h-2.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 top-full left-[-12px] mt-2 py-1.5 rounded-xl overflow-hidden bg-white/95 backdrop-blur-md border border-[rgba(179,27,32,0.12)] shadow-xl w-[calc(100%+24px)] min-w-[220px] animate-in fade-in zoom-in-95 duration-200">
+          {options.map((opt, idx) => {
+            const isSelected = opt.value === value;
+            const isDisabled = opt.disabled;
+
+            return (
+              <div key={opt.value + idx}>
+                {idx === 1 && isFlight && <div className="h-px mx-3 my-1 bg-gradient-to-r from-transparent via-red-900/10 to-transparent" />}
+                <div
+                  onClick={() => {
+                    if (!isDisabled) {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                    }
+                  }}
+                  className={`relative px-3 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold transition-colors duration-150 select-none
+                    ${isDisabled ? 'text-gray-300 cursor-not-allowed italic' : isSelected ? 'text-[#B31B20] cursor-pointer' : 'text-gray-600 hover:text-[#B31B20] cursor-pointer'}`}
+                  style={{ background: isSelected ? 'linear-gradient(90deg, rgba(179,27,32,0.05) 0%, transparent 100%)' : undefined }}
+                >
+                  {!isDisabled && (
+                    <span className="absolute left-0 top-[20%] w-[3px] rounded-r-[3px] transition-all duration-200 bg-[#B31B20]" style={{ height: '60%', opacity: isSelected ? 1 : 0, transform: isSelected ? 'scaleY(1)' : 'scaleY(0.4)' }} />
+                  )}
+                  <span className="w-1 h-1 rounded-full flex-shrink-0 transition-colors duration-150" style={{ border: `1px solid ${isSelected ? '#B31B20' : 'currentColor'}`, background: isSelected ? '#B31B20' : 'transparent', opacity: isDisabled ? 0.3 : isSelected ? 1 : 0.45 }} />
+                  <span className="leading-snug">{opt.label}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 function SearchContent() {
   const router = useRouter();
@@ -11,14 +107,17 @@ function SearchContent() {
   const initialOrigin = searchParams.get('origin') || 'KNI Airport';
   const initialDest = searchParams.get('destination') || 'Nababhat Bus Stop';
   const initialDate = searchParams.get('date') || '';
+  const initialFlight = searchParams.get('flight') || 'ALL'; // 👈 Fetch Flight from URL
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const minDate = tomorrow.toISOString().split('T')[0];
 
   // Top Bar Edit State
-  const [route, setRoute] = useState({ origin: initialOrigin, destination: initialDest });
+  const [origin, setOrigin] = useState(initialOrigin);
+  const [destination, setDestination] = useState(initialDest);
   const [date, setDate] = useState(initialDate || minDate);
+  const [flight, setFlight] = useState(initialFlight); // 👈 Flight State
   const [swapped, setSwapped] = useState(false);
 
   // Data State
@@ -29,14 +128,40 @@ function SearchContent() {
   // Filter State
   const [selectedTimes, setSelectedTimes] = useState([]);
 
+  // 👇 DYNAMIC FLIGHT FILTER LOGIC (Synced with Home Page) 👇
+  const isArrival = origin === 'KNI Airport';
+  const selectedDayOfWeek = new Date(date).getDay();
+  
+  const availableFlights = FLIGHT_SCHEDULES.filter(f => 
+    f.type === (isArrival ? 'ARR' : 'DEP') && f.days.includes(selectedDayOfWeek)
+  );
+
+  useEffect(() => {
+    const isValid = availableFlights.find(f => f.id === flight);
+    if (!isValid && flight !== 'ALL' && flight !== 'NONE') {
+      setFlight('ALL');
+    }
+  }, [origin, destination, date]);
+
+  // Dropdown Formatters
+  const locationOptions = LOCATIONS.map(loc => ({ value: loc, label: loc }));
+  const flightOptions = [
+    { value: 'ALL', label: 'Show All Scheduled Buses' },
+    ...(availableFlights.length > 0 
+        ? availableFlights.map(f => ({ value: f.id, label: f.label }))
+        : [{ value: 'NONE_DISABLED', label: 'No flights mapped for this route today', disabled: true }]
+    )
+  ];
+
   // ── Fetch Data ──
   useEffect(() => {
     const fetchSchedules = async () => {
       setLoading(true);
       setError('');
       try {
+        // 👈 Passed initialFlight into the API call 👇
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/schedules/search?origin=${encodeURIComponent(initialOrigin)}&destination=${encodeURIComponent(initialDest)}&date=${initialDate}`
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/schedules/search?origin=${encodeURIComponent(initialOrigin)}&destination=${encodeURIComponent(initialDest)}&date=${initialDate}&flight=${initialFlight}`
         );
         if (!res.ok) throw new Error('Failed to fetch schedules');
         const data = await res.json();
@@ -50,17 +175,24 @@ function SearchContent() {
     if (initialOrigin && initialDest && initialDate) {
       fetchSchedules();
     }
-  }, [initialOrigin, initialDest, initialDate]);
+  }, [initialOrigin, initialDest, initialDate, initialFlight]);
 
   // ── Top Bar Handlers ──
   const handleSwap = () => {
+    const temp = origin;
+    setOrigin(destination);
+    setDestination(temp);
     setSwapped(!swapped);
-    setRoute({ origin: route.destination, destination: route.origin });
   };
 
   const handleUpdateSearch = (e) => {
     e.preventDefault();
-    router.push(`/search?origin=${encodeURIComponent(route.origin)}&destination=${encodeURIComponent(route.destination)}&date=${date}`);
+    if (flight !== 'ALL') {
+      sessionStorage.setItem('bengal_transit_preferred_flight', flight);
+    } else {
+      sessionStorage.removeItem('bengal_transit_preferred_flight');
+    }
+    router.push(`/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${date}&flight=${flight}`);
   };
 
   // ── Formatting ──
@@ -75,7 +207,6 @@ function SearchContent() {
   const toggleTimeFilter = (timeLabel) => {
     setSelectedTimes(prev => prev.includes(timeLabel) ? prev.filter(t => t !== timeLabel) : [...prev, timeLabel]);
   };
-
   const clearFilters = () => setSelectedTimes([]);
 
   const filteredSchedules = schedules.filter(schedule => {
@@ -95,16 +226,15 @@ function SearchContent() {
   return (
     <main className="min-h-[100dvh] bg-gray-50 font-sans">
       
-      {/* ── TOP EDIT BAR (Inline Back Button Layout) ── */}
+      {/* ── TOP EDIT BAR ── */}
       <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <form onSubmit={handleUpdateSearch} className="flex flex-col md:flex-row items-center justify-between gap-3 lg:gap-4 w-full">
+          <form onSubmit={handleUpdateSearch} className="flex flex-col xl:flex-row items-center justify-between gap-3 lg:gap-4 w-full">
             
-            {/* 👇 BACK BUTTON NOW IN THE ROW 👇 */}
             <button 
-              type="button" // Important so it doesn't trigger a search!
+              type="button" 
               onClick={() => router.push('/')} 
-              className="flex items-center gap-1.5 text-sm font-bold text-gray-400 hover:text-[#B31B20] transition-colors self-start md:self-center shrink-0 pr-2"
+              className="flex items-center gap-1.5 text-sm font-bold text-gray-400 hover:text-[#B31B20] transition-colors self-start xl:self-center shrink-0 pr-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -113,40 +243,46 @@ function SearchContent() {
             </button>
 
             {/* From */}
-            <div className="w-full md:flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[60px] flex flex-col justify-center shadow-sm">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">From</label>
-              <p className="text-sm md:text-base font-bold text-gray-900 truncate">{route.origin}</p>
+            <div className="w-full xl:flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm">
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">From</label>
+              <CustomDropdown value={origin} options={locationOptions} onChange={setOrigin} placeholder="Select Origin" />
             </div>
             
             {/* Swap Button */}
-            <button type="button" onClick={handleSwap} className="p-2 text-gray-400 hover:text-[#B31B20] transition-colors -my-2 md:my-0 z-10 bg-white rounded-full shrink-0">
+            <button type="button" onClick={handleSwap} className="p-2 text-gray-400 hover:text-[#B31B20] transition-colors -my-2 xl:my-0 z-10 bg-white rounded-full shrink-0">
               <svg className={`w-5 h-5 transition-transform ${swapped ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
             </button>
 
             {/* To */}
-            <div className="w-full md:flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[60px] flex flex-col justify-center shadow-sm">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">To</label>
-              <p className="text-sm md:text-base font-bold text-gray-900 truncate">{route.destination}</p>
+            <div className="w-full xl:flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm">
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">To</label>
+              <CustomDropdown value={destination} options={locationOptions} onChange={setDestination} placeholder="Select Destination" />
             </div>
 
             {/* Depart */}
-            <div className="w-full md:flex-1 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[60px] flex flex-col justify-center shadow-sm relative">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Depart</label>
+            <div className="w-full xl:w-40 border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm relative shrink-0">
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Depart</label>
               <input 
                 type="date" 
                 value={date} 
                 min={minDate} 
                 onChange={(e) => setDate(e.target.value)} 
                 required 
-                className="bg-transparent border-0 p-0 text-sm md:text-base font-bold text-gray-900 focus:ring-0 outline-none w-full cursor-pointer" 
+                className="bg-transparent border-0 p-0 text-sm sm:text-base font-bold text-gray-900 focus:ring-0 outline-none w-full cursor-pointer" 
               />
             </div>
 
+            {/* Flight Selector */}
+            <div className="w-full xl:flex-[1.2] border border-gray-300 rounded-xl bg-white px-4 py-2 min-h-[50px] flex flex-col justify-center shadow-sm">
+              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Travelling Flight</label>
+              <CustomDropdown value={flight} options={flightOptions} onChange={setFlight} placeholder="Select Travelling Flight" isFlight={true} />
+            </div>
+
             {/* Search Button */}
-            <button type="submit" className="w-full md:w-auto bg-[#B31B20] hover:bg-[#8f1419] text-white rounded-xl min-h-[60px] font-bold text-sm md:text-base uppercase tracking-wider transition-colors shadow-md px-8 shrink-0">
-              Search
+            <button type="submit" className="w-full xl:w-auto bg-[#B31B20] hover:bg-[#8f1419] text-white rounded-xl min-h-[50px] font-bold text-sm md:text-base uppercase tracking-wider transition-colors shadow-md px-6 shrink-0">
+              Update
             </button>
             
           </form>
@@ -193,7 +329,6 @@ function SearchContent() {
               </div>
             </div>
 
-            {/* Static Filters (As requested) */}
             <div className="mb-6">
               <p className="text-xs font-bold text-gray-900 mb-3">Bus Type</p>
               <div className="flex gap-2">
@@ -218,7 +353,6 @@ function SearchContent() {
                 <span>₹150</span><span>₹150</span>
               </div>
             </div>
-
           </div>
         </aside>
 
@@ -281,7 +415,6 @@ function SearchContent() {
 
                   {/* Bottom Row: Actions */}
                   <div className="flex justify-between items-center">
-                    
                     <button 
                       onClick={() => router.push(`/book/${s.id}`)}
                       className="bg-[#B31B20] hover:bg-[#8f1419] text-white px-6 py-2 rounded font-bold text-sm transition-colors shadow-sm"
@@ -299,7 +432,6 @@ function SearchContent() {
   );
 }
 
-// Wrap in Suspense for Next.js useSearchParams requirement
 export default function SearchPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="w-8 h-8 border-4 border-[#B31B20] border-t-transparent rounded-full animate-spin"></div></div>}>
