@@ -364,21 +364,11 @@ export default function BookingPage() {
             </p>
 
             {/* Scaled Image Slider for Mobile */}
-            <div className="flex overflow-x-auto gap-3 pb-3 mb-5 sm:mb-6 snap-x hide-scrollbar">
+            <div className="mb-5 sm:mb-6">
               <img 
-                src="/bus_1.png" 
+                src="/bus.jpeg" 
                 alt="Bus exterior" 
-                className="w-48 h-32 sm:w-56 sm:h-36 object-cover rounded-lg snap-start border border-gray-200 flex-shrink-0"
-              />
-              <img 
-                src="/bus_2.png" 
-                alt="Bus interior" 
-                className="w-48 h-32 sm:w-56 sm:h-36 object-cover rounded-lg snap-start border border-gray-200 flex-shrink-0"
-              />
-              <img 
-                src="/bus_3.png" 
-                alt="Bus seating" 
-                className="w-48 h-32 sm:w-56 sm:h-36 object-cover rounded-lg snap-start border border-gray-200 flex-shrink-0"
+                className="w-full max-w-sm h-40 sm:h-48 object-cover rounded-xl border border-gray-200 shadow-sm"
               />
             </div>
 
